@@ -19,15 +19,23 @@
     <script type="module" src="static/noVNC/core/rfb.js"></script>
     <script type="module" src="static/noVNC/app/ui.js"></script>
     <script>
-        function refreshImage() {
-            var img = document.getElementById('liveImage');
-            img.src = '/current_image?' + new Date().getTime();
+        function fetchPrediction() {
             fetch('/predict', { method: 'POST' })
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('predictionResult').innerText = 'Prediction: ' + data.prediction;
                 })
-                .catch(error => console.error('Error fetching prediction:', error));
+                .catch(error => {
+                    console.error('Error fetching prediction:', error);
+                    document.getElementById('predictionResult').innerText = 'Prediction: Not Connected to ML Model';
+                });
+        }
+        setInterval(fetchPrediction, 5000);
+
+        function refreshImage() {
+            var img = document.getElementById('liveImage');
+            img.src = '/current_image?' + new Date().getTime();
+            fetchPrediction(); // Call the new fetchPrediction function
         }
         setInterval(refreshImage, 5000); // Refresh every 5000 milliseconds (5 seconds)
 
@@ -59,14 +67,14 @@
             <img id="errmapdepthImage" src="/current_errmapdepth_image" alt="Errmapdepth Image" style="width: 200px; height: 200px;">
         </div>
         <div style="display: flex; justify-content: center; width: 100%;">
-            <p>Prediction Result: {{ details.prediction }}</p>
+            <p id="Prediction Result">Prediction Result: {{ details.prediction }}</p>
         </div>
         <!---<p>Progress: {{ details.progress }}%</p>
         <h2>Temperatures</h2>
         <p>Nozzle: {{ details.temperature.nozzle }}°C</p>
         <p>Bed: {{ details.temperature.bed }}°C</p>-->
         
-        <!---<div id="vnc-display" style="width: 800px; height: 600px;"></div>--->
+        <!---<div id="vnc-display" style="width: 800px; height: 600px;"></div>-->
         <div>
             <p>{{ details.latest_message }}</p>
         </div>

@@ -25,6 +25,7 @@ def update_current_job():
                 # Adjusted to fetch 'subtask_name' as per the new JSON structure
                 subtask_name = data['subtask_name']
                 current_job_name = subtask_name
+                send_image_for_prediction('/userdata/log/cam/capture/calib_14.jpg')
         except Exception as e:
             print(f"Error reading or parsing JSON file: {e}")
         time.sleep(10)
@@ -44,6 +45,7 @@ def printer_hmi():
         'prediction': send_image_for_prediction('/userdata/log/cam/capture/calib_14.jpg')  # Get prediction result
     }
     return render_template('index.html', details=printer_details)
+
 
 @app.route('/home_xyz_func', methods=['GET','POST'])
 def home_xyz_func():
@@ -69,8 +71,11 @@ def preheat_0c():
 @app.route('/start_bbl_screen_vnc', methods=['GET','POST']) #Start VNC
 def start_bbl_screen_vnc():
     global latest_message
-    subprocess.run(["/usr/bin/start_bbl_screen_vnc.sh"], shell=False)
-    latest_message = 'VNC Started'
+    try:
+        latest_message = 'VNC Started'
+        subprocess.run(["/usr/bin/start_bbl_screen_vnc.sh"], shell=False, timeout=3)  # Add a timeout of 3 second and avoid callback because im lazy.
+    except subprocess.TimeoutExpired:
+        latest_message = 'VNC Started' #This is odd but true, it does start the VNC server. Again, lazy mode.
     return redirect(url_for('printer_hmi'))
 
 @app.route('/current_image')
@@ -93,13 +98,22 @@ def current_errmapdepth_image():
     image_path = '/userdata/log/cam/flc/report/errmap_depth.png'
     return send_file(image_path, mimetype='image/png')
 
-def send_image_for_prediction(image_path):
-    url = 'http://192.168.8.135:5001/predict'
-    files = {'image': open(image_path, 'rb')}
-    response = requests.post(url, files=files)
-    return response.json()
+def send_image_for_prediction(image_path):  
+    try:
+        url = 'http://192.168.8.135:5001/predict'
+        files = {'image': open(image_path, 'rb')}
+        response = requests.post(url, files=files, timeout=5)
+        prediction_result = response.json()
+        return prediction_result
+    except requests.exceptions.RequestException as e:  # This catches all exceptions related to the request
+        print(f"Error connecting to the prediction service or timeout occurred: {e}")
+        prediction_result = "Prediction server not found on the local network or is not currently running."
+        if 'Prediction Server Not Found on Local Network or is not currently running.' in prediction_result:
+            prediction_result = prediction_result.replace('Prediction Server Not Found on Local Network or is not currently running.', '')
+        return prediction_result
 
 if __name__ == '__main__':
     # Start the background thread
     threading.Thread(target=update_current_job, daemon=True).start()
     app.run(host='0.0.0.0', port=5000)
+
